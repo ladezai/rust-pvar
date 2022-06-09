@@ -9,10 +9,23 @@ mod tests {
 }
 
 pub mod pvar {
+    #![allow(non_snake_case)]
+    use std::fmt::{Display, Formatter, self};
+
+
     #[derive(Debug, PartialEq)]
     pub enum PVarError {
         EmptyArray,
         PRange
+    }
+
+    impl Display for PVarError {
+        fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+            match self {
+                Self::EmptyArray => write!(f, "input array is empty"),
+                Self::PRange => write!(f, "exponent must be greater or equal than 1.0")
+            }
+        }
     }
 
     pub fn p_var_backbone<T, F>(v: &[T], p: f64, dist: F) -> Result<f64, PVarError>
