@@ -102,4 +102,24 @@ pub mod pvar {
             }
         Ok(max_p_var)
     }
+
+    pub fn p_var_backbone_ref<T, F>(v: &[T], p: f64, dist: F) -> Result<f64, PVarError>
+        where F: Fn(T, T) -> f64, T: Copy {
+            if v.len() == 0 {
+                return Err(PVarError::EmptyArray);
+            }
+            if v.len() == 1 {
+                return Ok(0.);
+            }
+            
+            let mut cum_p_var = vec![0f64; v.len()];
+
+            for j in 1..v.len() {
+                for m in 0..j {
+                    cum_p_var[j] = f64::max(cum_p_var[j], cum_p_var[m] + dist(v[m], v[j]).powf(p));
+                }
+            }
+
+            Ok(*cum_p_var.last().unwrap())
+    }
 }
