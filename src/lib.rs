@@ -16,7 +16,7 @@ pub mod pvar {
     }
 
     pub fn p_var_backbone<T, F>(v: &[T], p: f64, dist: F) -> Result<f64, PVarError>
-        where F: Fn(&T, &T) -> f64 {
+        where F: Fn(T, T) -> f64, T: Copy {
             if p < 1. {
                 return Err(PVarError::PRange);
             }
@@ -48,7 +48,7 @@ pub mod pvar {
                 for n in 1..=N {
                     if !center_outside_range(j, n) {
                         let r = &mut radius[ind_n(j, n)];
-                        *r = f64::max(*r, dist(&v[center(j, n)], &v[j]));
+                        *r = f64::max(*r, dist(v[center(j, n)], v[j]));
                     }
                 }
                 if j == 0 {
@@ -58,7 +58,7 @@ pub mod pvar {
                 let mut m = j - 1;
                 point_links[j] = m;
 
-                let mut delta = dist(&v[m], &v[j]);
+                let mut delta = dist(v[m], v[j]);
 
                 max_p_var = run_pvar[m] + delta.powf(p);
 
@@ -73,7 +73,7 @@ pub mod pvar {
                     let mut delta_needs_update = true;
                     while n > 0 {
                         if !center_outside_range(m, n) {
-                            let id = radius[ind_n(m, n)] + dist(&v[center(m, n)], &v[j]);
+                            let id = radius[ind_n(m, n)] + dist(v[center(m, n)], v[j]);
                             if delta >= id { break; }
                             else if delta_needs_update {
                                 delta = (max_p_var - run_pvar[m]).powf(1f64 / p);
@@ -87,7 +87,7 @@ pub mod pvar {
                         m = (m >> n) << n;
                     }
                     else {
-                        let d = dist(&v[m], &v[j]);
+                        let d = dist(v[m], v[j]);
                         if d >= delta {
                             let new_p_var = run_pvar[m] + d.powf(p);
                             if new_p_var >= max_p_var {
