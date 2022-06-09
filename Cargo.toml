@@ -9,4 +9,9 @@ edition = "2021"
 rand = { version = "0.8.5", features = ["min_const_gen"] }
 
 [dev-dependencies]
+criterion = "0.3.5"
 rand = "0.8.5"
+
+[[bench]]
+name = "benchmarks"
+harness = false
