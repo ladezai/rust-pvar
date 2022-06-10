@@ -1,5 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use pvar::pvar::p_var_backbone;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use pvar::pvar::{p_var_backbone, p_var_backbone_ref};
 
 fn generate_bm(n: usize) -> Vec<f64> {
     use rand::{
@@ -23,14 +23,25 @@ fn generate_bm(n: usize) -> Vec<f64> {
     out
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
-    for n in 1..=6 {
+fn backbone_bench(c: &mut Criterion) {
+    let mut g = c.benchmark_group("p-var");
+    for n in 1..=4 {
         let v = generate_bm(10_usize.pow(n));
-        c.bench_function(&format!("backbone 2.5-var BM {}", 10_usize.pow(n)), |b| {
-            b.iter(|| p_var_backbone(&v, black_box(2.5), |a, b| f64::abs(b - a)))
-        });
+        g.bench_with_input(
+            BenchmarkId::new("Backbone 2.5-var BM", v.len() - 1),
+            &v,
+            |b, u| b.iter(|| p_var_backbone(u, black_box(2.5), black_box(|a, b| f64::abs(b - a)))),
+        );
+        g.bench_with_input(
+            BenchmarkId::new("Backbone ref 2.5-var BM", v.len() - 1),
+            &v,
+            |b, u| {
+                b.iter(|| p_var_backbone_ref(u, black_box(2.5), black_box(|a, b| f64::abs(b - a))))
+            },
+        );
     }
+    g.finish();
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group!(benches, backbone_bench);
 criterion_main!(benches);
