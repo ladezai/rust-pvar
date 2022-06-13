@@ -209,3 +209,109 @@ pub mod pvar {
         Ok(*cum_p_var.last().unwrap())
     }
 }
+
+pub mod ndarray {
+    use std::error::Error;
+    use std::fmt::{self, Display, Formatter};
+    use std::fs::File;
+    use std::io::{self, BufRead, BufReader, Read, Write};
+    use std::ops::{Index, IndexMut};
+    use std::path::Path;
+
+    #[derive(Debug)]
+    pub enum ArrayError {
+        ReshapeError,
+        NotEnoughData,
+    }
+
+    impl Display for ArrayError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
+            match self {
+                Self::ReshapeError => write!(f, "shape missmatch"),
+                Self::NotEnoughData => write!(f, "not enough bytes to read"),
+            }
+        }
+    }
+
+    impl Error for ArrayError {}
+
+    #[derive(Clone, Debug)]
+    pub struct Array<const N: usize> {
+        shape: [usize; N],
+        data: Vec<f64>,
+    }
+
+    impl<const N: usize> Index<[usize; N]> for Array<N> {
+        type Output = f64;
+        fn index(&self, idx: [usize; N]) -> &Self::Output {
+            let offset: usize = idx
+                .into_iter()
+                .enumerate()
+                .map(|(k, n)| n * self.shape[k + 1..].iter().product::<usize>())
+                .sum();
+            &self.data[offset]
+        }
+    }
+
+    impl<const N: usize> IndexMut<[usize; N]> for Array<N> {
+        fn index_mut(&mut self, idx: [usize; N]) -> &mut Self::Output {
+            let offset: usize = idx
+                .into_iter()
+                .enumerate()
+                .map(|(k, n)| n * self.shape[k + 1..].iter().product::<usize>())
+                .sum();
+            &mut self.data[offset]
+        }
+    }
+
+    impl Display for Array<2> {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            let reshaped: Vec<Vec<f64>> = self
+                .data
+                .chunks(self.shape[1])
+                .map(|v| v.to_vec())
+                .collect::<Vec<Vec<f64>>>();
+            writeln!(f, "{:#.6?}", reshaped)
+        }
+    }
+
+    impl<const N: usize> Array<N> {
+        pub fn new(shape: [usize; N]) -> Self {
+            Array {
+                shape: shape,
+                data: Vec::with_capacity(shape.iter().product::<usize>()),
+            }
+        }
+
+        pub fn zeros(shape: [usize; N]) -> Self {
+            Array {
+                shape: shape,
+                data: vec![0f64; shape.iter().product::<usize>()],
+            }
+        }
+
+        pub fn reshape<const M: usize>(&self, shape: [usize; M]) -> Result<Array<M>, ArrayError> {
+            if self.data.len() != shape.iter().product::<usize>() {
+                return Err(ArrayError::ReshapeError);
+            }
+
+            Ok(Array {
+                shape: shape,
+                data: self.data.clone(),
+            })
+        }
+
+        pub fn from_bytes(v: Vec<u8>, shape: [usize; N]) -> Result<Self, ArrayError> {
+            if v.len() / 8_usize != shape.iter().product::<usize>() {
+                return Err(ArrayError::NotEnoughData);
+            }
+            Ok(Array {
+                shape: shape,
+                data: v
+                    .chunks(8)
+                    .map(|a| f64::from_le_bytes(a.try_into().unwrap()))
+                    .collect(),
+            })
+        }
+    }
+}
