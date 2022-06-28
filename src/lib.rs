@@ -5,7 +5,7 @@ mod tests {
     use rand::distributions::Standard;
     use rand::prelude::*;
 
-    fn dist<const N: usize>(a: [f64; N], b: [f64; N]) -> f64 {
+    fn dist<'z, const N: usize>(a: &'z [f64; N], b: &'z [f64; N]) -> f64 {
         f64::sqrt(
             a.iter()
                 .zip(b.iter())
@@ -14,13 +14,13 @@ mod tests {
         )
     }
 
-    fn dist_1d(a: f64, b: f64) -> f64 {
+    fn dist_1d<'z>(a: &'z f64, b: &'z f64) -> f64 {
         f64::abs(a - b)
     }
 
     #[test]
     fn square_path() {
-        let v: [[f64; 2]; 8] = [
+        let v = [
             [0., 0.],
             [0., 1.],
             [1., 1.],
@@ -32,7 +32,7 @@ mod tests {
         ];
         let mut p = 1.;
         while p <= 4. {
-            assert_eq!(p_var_backbone(&v, p, dist), p_var_backbone_ref(&v, p, dist));
+            assert_eq!(p_var_backbone(&v, p, dist).ok(), p_var_backbone_ref(&v, p, dist).ok());
             p += 0.5;
         }
     }
@@ -93,10 +93,9 @@ pub mod pvar {
         }
     }
 
-    pub fn p_var_backbone<T, F>(v: &[T], p: f64, dist: F) -> Result<f64, PVarError>
+    pub fn p_var_backbone<'a, T, F>(v: &'a [T], p: f64, dist: F) -> Result<f64, PVarError>
     where
-        F: Fn(T, T) -> f64,
-        T: Copy,
+        F: Fn(&'a T, &'a T) -> f64,
     {
         if p < 1. {
             return Err(PVarError::PRange);
@@ -129,7 +128,7 @@ pub mod pvar {
             for n in 1..=N {
                 if !center_outside_range(j, n) {
                     let r = &mut radius[ind_n(j, n)];
-                    *r = f64::max(*r, dist(v[center(j, n)], v[j]));
+                    *r = f64::max(*r, dist(&v[center(j, n)], &v[j]));
                 }
             }
             if j == 0 {
@@ -139,7 +138,7 @@ pub mod pvar {
             let mut m = j - 1;
             point_links[j] = m;
 
-            let mut delta = dist(v[m], v[j]);
+            let mut delta = dist(&v[m], &v[j]);
 
             max_p_var = run_pvar[m] + delta.powf(p);
 
@@ -154,7 +153,7 @@ pub mod pvar {
                 let mut delta_needs_update = true;
                 while n > 0 {
                     if !center_outside_range(m, n) {
-                        let id = radius[ind_n(m, n)] + dist(v[center(m, n)], v[j]);
+                        let id = radius[ind_n(m, n)] + dist(&v[center(m, n)], &v[j]);
                         if delta >= id {
                             break;
                         } else if delta_needs_update {
@@ -170,7 +169,7 @@ pub mod pvar {
                 if n > 0 {
                     m = (m >> n) << n;
                 } else {
-                    let d = dist(v[m], v[j]);
+                    let d = dist(&v[m], &v[j]);
                     if d >= delta {
                         let new_p_var = run_pvar[m] + d.powf(p);
                         if new_p_var >= max_p_var {
@@ -186,9 +185,9 @@ pub mod pvar {
         Ok(max_p_var)
     }
 
-    pub fn p_var_backbone_ref<T, F>(v: &[T], p: f64, dist: F) -> Result<f64, PVarError>
+    pub fn p_var_backbone_ref<'a, T, F>(v: &'a [T], p: f64, dist: F) -> Result<f64, PVarError>
     where
-        F: Fn(T, T) -> f64,
+        F: Fn(&'a T, &'a T) -> f64,
         T: Copy,
     {
         if v.len() == 0 {
@@ -202,7 +201,7 @@ pub mod pvar {
 
         for j in 1..v.len() {
             for m in 0..j {
-                cum_p_var[j] = f64::max(cum_p_var[j], cum_p_var[m] + dist(v[m], v[j]).powf(p));
+                cum_p_var[j] = f64::max(cum_p_var[j], cum_p_var[m] + dist(&v[m], &v[j]).powf(p));
             }
         }
 
