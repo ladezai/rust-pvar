@@ -1,80 +1,6 @@
-#[cfg(test)]
+mod tests;
 
-mod tests {
-    use super::pvar::*;
-    use rand::distributions::Standard;
-    use rand::prelude::*;
-
-    fn dist<'z, const N: usize>(a: &'z [f64; N], b: &'z [f64; N]) -> f64 {
-        f64::sqrt(
-            a.iter()
-                .zip(b.iter())
-                .map(|(&x, &y)| (x - y).powf(2.))
-                .sum(),
-        )
-    }
-
-    fn dist_1d<'z>(a: &'z f64, b: &'z f64) -> f64 {
-        f64::abs(a - b)
-    }
-
-    #[test]
-    fn square_path() {
-        let v = [
-            [0., 0.],
-            [0., 1.],
-            [1., 1.],
-            [1., 0.],
-            [0., 0.],
-            [0., 0.],
-            [0., 0.],
-            [0., 0.],
-        ];
-        let mut p = 1.;
-        while p <= 4. {
-            assert_eq!(p_var_backbone(&v, p, dist).ok(), p_var_backbone_ref(&v, p, dist).ok());
-            p += 0.5;
-        }
-    }
-
-    #[test]
-    fn bm() {
-        const N: usize = 2500;
-        let mut path = [0.; N + 1];
-        let sigma = 1. / f64::sqrt(N as f64);
-        path[1..].copy_from_slice(
-            &StdRng::from_entropy()
-                .sample::<[bool; N], Standard>(Standard)
-                .map(|x| if x { sigma } else { -sigma })
-                .iter()
-                .scan(0., |acc, x| {
-                    *acc += x;
-                    Some(*acc)
-                })
-                .collect::<Vec<_>>(),
-        );
-        for p in [1., f64::sqrt(2.), 2., f64::exp(1.)] {
-            assert_eq!(
-                p_var_backbone(&path, p, dist_1d),
-                p_var_backbone_ref(&path, p, dist_1d)
-            );
-        }
-    }
-
-    #[test]
-    fn errors() {
-        assert_eq!(
-            format!("{}", p_var_backbone(&[], 1., dist_1d).err().unwrap()),
-            "input array is empty"
-        );
-        assert_eq!(
-            format!("{}", p_var_backbone(&[0., 1.], 0., dist_1d).err().unwrap()),
-            "exponent must be greater or equal than 1.0"
-        );
-    }
-}
-
-pub mod pvar {
+pub mod p_var {
     #![allow(non_snake_case)]
     use std::fmt::{self, Display, Formatter};
 
@@ -108,7 +34,7 @@ pub mod pvar {
             return Ok(0.);
         }
 
-        let mut run_pvar: Vec<f64> = vec![0f64; v.len()];
+        let mut run_pvar = vec![0f64; v.len()];
         let mut N = 1;
         let s = v.len() - 1;
 
@@ -124,11 +50,11 @@ pub mod pvar {
         let mut point_links = vec![0usize; v.len()];
         let mut max_p_var = 0f64;
 
-        for j in 0..v.len() {
+        for (j, u) in v.iter().enumerate() {
             for n in 1..=N {
                 if !center_outside_range(j, n) {
                     let r = &mut radius[ind_n(j, n)];
-                    *r = f64::max(*r, dist(&v[center(j, n)], &v[j]));
+                    *r = f64::max(*r, dist(&v[center(j, n)], u));
                 }
             }
             if j == 0 {
@@ -138,7 +64,7 @@ pub mod pvar {
             let mut m = j - 1;
             point_links[j] = m;
 
-            let mut delta = dist(&v[m], &v[j]);
+            let mut delta = dist(&v[m], u);
 
             max_p_var = run_pvar[m] + delta.powf(p);
 
@@ -153,7 +79,7 @@ pub mod pvar {
                 let mut delta_needs_update = true;
                 while n > 0 {
                     if !center_outside_range(m, n) {
-                        let id = radius[ind_n(m, n)] + dist(&v[center(m, n)], &v[j]);
+                        let id = radius[ind_n(m, n)] + dist(&v[center(m, n)], u);
                         if delta >= id {
                             break;
                         } else if delta_needs_update {
@@ -169,7 +95,7 @@ pub mod pvar {
                 if n > 0 {
                     m = (m >> n) << n;
                 } else {
-                    let d = dist(&v[m], &v[j]);
+                    let d = dist(&v[m], u);
                     if d >= delta {
                         let new_p_var = run_pvar[m] + d.powf(p);
                         if new_p_var >= max_p_var {
@@ -207,4 +133,29 @@ pub mod pvar {
 
         Ok(*cum_p_var.last().unwrap())
     }
+}
+
+use pyo3::prelude::*;
+
+#[pyfunction]
+#[pyo3(name = "p_var")]
+fn pvar_wrapper(path: Vec<Vec<f64>>, p: f64, dist: &str) -> f64 {
+    let dist_fn = match dist {
+        "euclidean" => |a: &Vec<f64>, b: &Vec<f64>| {
+            a.iter()
+                .zip(b)
+                .map(|(x, y)| (x - y) * (x - y))
+                .sum::<f64>()
+                .sqrt()
+        },
+        _ => panic!("distance function not supported"),
+    };
+
+    p_var::p_var_backbone(&path, p, dist_fn).unwrap()
+}
+
+#[pymodule]
+fn pvar(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(pvar_wrapper, m)?)?;
+    Ok(())
 }

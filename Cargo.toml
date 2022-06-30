@@ -3,15 +3,17 @@ name = "pvar"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-rand = { version = "0.8.5", features = ["min_const_gen"] }
+[lib]
+name = "pvar"
+crate-type = ["cdylib", "rlib"]
 
 [dev-dependencies]
 criterion = "0.3.5"
-rand = "0.8.5"
+rand = { version = "0.8.5", features = ["min_const_gen"] }
 
 [[bench]]
 name = "benchmarks"
 harness = false
+
+[dependencies]
+pyo3 = { version = "0.16.5", features = ["extension-module"] }
