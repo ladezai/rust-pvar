@@ -1,0 +1,4 @@
+build:
+  script:
+    - pipenv install --python 3.9
+    - pipenv run maturin build --release
