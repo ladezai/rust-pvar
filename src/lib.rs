@@ -139,16 +139,13 @@ use pyo3::prelude::*;
 
 #[pyfunction]
 #[pyo3(name = "p_var")]
-fn pvar_wrapper(path: Vec<Vec<f64>>, p: f64, dist: &str) -> f64 {
-    let dist_fn = match dist {
-        "euclidean" => |a: &Vec<f64>, b: &Vec<f64>| {
+fn pvar_wrapper(path: Vec<Vec<f64>>, p: f64, dist: f64) -> f64 {
+    let dist_fn = |a: &Vec<f64>, b: &Vec<f64>| {
             a.iter()
                 .zip(b)
-                .map(|(x, y)| (x - y) * (x - y))
+                .map(|(x, y)| (x-y).powf(dist))
                 .sum::<f64>()
-                .sqrt()
-        },
-        _ => panic!("distance function not supported"),
+                .powf(1.0/dist)
     };
 
     p_var::p_var_backbone(&path, p, dist_fn).unwrap()
